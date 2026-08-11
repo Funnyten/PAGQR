@@ -995,12 +995,15 @@ router.get('/webhook', async (req, res) => {
     const transactionId = getTransactionIdFromPayload(payload);
     let clientTransactionId = getClientTransactionIdFromPayload(payload);
 
+    if (payload.id === '0' || transactionId === '0') {
+        return res.redirect(buildFrontendRedirectUrl('/error-pago.html', { reason: 'cancelado', orden: clientTransactionId }));
+    }
+
     if (!transactionId) {
         return res.redirect(buildFrontendRedirectUrl('/error-pago.html', { reason: 'parametros_invalidos' }));
     }
 
     try {
-        // FIX MAESTRO: Si la orden ya se pagó (el POST fue rápido), no explotamos
         if (clientTransactionId) {
             const isPaid = await checkIfOrderIsPaidSafe(clientTransactionId);
             if (isPaid) {
@@ -1011,7 +1014,6 @@ router.get('/webhook', async (req, res) => {
             }
         }
 
-        // Si Payphone no mandó el código de la orden, lo rastreamos
         if (!clientTransactionId) {
             const pagoReal = await PayphoneService.verificarPago(transactionId, clientTransactionId);
             clientTransactionId = getGatewayReference(pagoReal, null);
@@ -1021,7 +1023,6 @@ router.get('/webhook', async (req, res) => {
             return res.redirect(buildFrontendRedirectUrl('/error-pago.html', { reason: 'orden_no_encontrada' }));
         }
 
-        // Procesamos por si el POST del fondo aún no termina
         const result = await processApprovedPayment(transactionId, clientTransactionId);
 
         if (!result.ok && !result.alreadyProcessed) {
@@ -1033,7 +1034,6 @@ router.get('/webhook', async (req, res) => {
             }));
         }
 
-        // ¡GOL! Te mandamos a la pantalla de éxito
         return res.redirect(buildFrontendRedirectUrl('/exito-pago.html', {
             orden: clientTransactionId,
             tx: transactionId

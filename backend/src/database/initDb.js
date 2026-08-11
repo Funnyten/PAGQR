@@ -7,7 +7,7 @@ const {
   DB_HOST = 'mysql.railway.internal',
   DB_PORT = 3306,
   DB_USER = 'root',
-  DB_PASSWORD = 'EszZHkoRYvjPnEUDXhqxwwXghsFMsKDu',
+  DB_PASSWORD = 'tVDypGeVFMnLJZncpTpnuHvbGfkFWcPU',
   DB_NAME = 'railway'
 } = process.env;
 

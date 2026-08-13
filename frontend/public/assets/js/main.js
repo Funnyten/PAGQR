@@ -915,12 +915,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('compraForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-
-        const esTransferencia = radioTransferencia?.checked;
+        const esTransferencia = $('pagoTransferencia')?.checked;
 
         if (esTransferencia) {
-            console.log("Iniciando pago por transferencia...");
-            mostrarAlerta("Pronto: Aquí subiremos el comprobante al servidor.");
+            await manejarPagoTransferencia();
         } else {
             await manejarPagoPayPhone();
         }

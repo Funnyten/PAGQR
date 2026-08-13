@@ -3,6 +3,33 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const router = express.Router();
 const db = require('../config/db');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+function generarCodigoEntrada(prefix = 'ENT') {
+    return `${prefix}-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
+
+const uploadDir = path.join(__dirname, '../../../frontend/public/uploads/comprobantes');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'comp-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // Límite de 5MB
+});
 
 const ORDER_EXPIRATION_MINUTES = (() => {
     const raw = Number(process.env.ORDER_EXPIRATION_MINUTES);
@@ -484,6 +511,201 @@ router.post('/', async (req, res) => {
         if (connection) {
             connection.release();
         }
+    }
+});
+
+// =========================
+// CREAR ORDEN POR TRANSFERENCIA
+// =========================
+router.post('/transferencia', upload.single('comprobante'), async (req, res) => {
+    let connection;
+    try {
+        if (!req.file) {
+            return res.status(400).json({ ok: false, message: 'Debe adjuntar el comprobante de pago' });
+        }
+
+        let cliente, items, subtotal, iva, total;
+        try {
+            // Al venir de un FormData, los objetos JSON vienen como strings
+            cliente = JSON.parse(req.body.cliente);
+            items = JSON.parse(req.body.items);
+            subtotal = parseFloat(req.body.subtotal);
+            iva = parseFloat(req.body.iva);
+            total = parseFloat(req.body.total);
+        } catch (e) {
+            return res.status(400).json({ ok: false, message: 'Formato de datos inválido' });
+        }
+
+        const nombres = (cliente.nombres || '').trim();
+        const apellidos = (cliente.apellidos || '').trim();
+        const email = (cliente.email || '').trim().toLowerCase();
+        const telefono = (cliente.telefono || '').trim();
+        const cedula_ruc = (cliente.cedula_ruc || cliente.documento || '').trim();
+        const direccion = (cliente.direccion || '').trim();
+
+        if (!nombres || !apellidos || !email || !isValidEmail(email)) {
+            return res.status(400).json({ ok: false, message: 'Datos del cliente inválidos o incompletos' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        // 1. Buscar o insertar cliente
+        let id_cliente;
+        const [clienteRows] = await connection.execute(`SELECT id_cliente FROM clientes WHERE email = ? LIMIT 1`, [email]);
+        if (clienteRows.length > 0) {
+            id_cliente = clienteRows[0].id_cliente;
+            await connection.execute(
+                `UPDATE clientes SET nombres = ?, apellidos = ?, telefono = ?, cedula_ruc = ?, direccion = ? WHERE id_cliente = ?`,
+                [nombres, apellidos, telefono, cedula_ruc, direccion, id_cliente]
+            );
+        } else {
+            const [clienteInsert] = await connection.execute(
+                `INSERT INTO clientes (nombres, apellidos, email, telefono, cedula_ruc, direccion) VALUES (?, ?, ?, ?, ?, ?)`,
+                [nombres, apellidos, email, telefono, cedula_ruc, direccion]
+            );
+            id_cliente = clienteInsert.insertId;
+        }
+
+        // 2. Validar stock e items
+        let subtotalCalculado = 0;
+        const itemsValidados = [];
+
+        for (const item of items) {
+            const id_tipo_entrada = toNumber(item.id_tipo_entrada);
+            const cantidad = toNumber(item.cantidad);
+
+            const [tipoRows] = await connection.execute(
+                `SELECT id_tipo_entrada, id_evento, nombre, precio, stock_disponible FROM tipos_entrada WHERE id_tipo_entrada = ? FOR UPDATE`,
+                [id_tipo_entrada]
+            );
+
+            if (tipoRows.length === 0 || tipoRows[0].stock_disponible < cantidad) {
+                await connection.rollback();
+                return res.status(409).json({ ok: false, message: `Stock insuficiente para uno de los items` });
+            }
+
+            const subtotal_item = roundToTwo(tipoRows[0].precio * cantidad);
+            subtotalCalculado = roundToTwo(subtotalCalculado + subtotal_item);
+
+            itemsValidados.push({
+                id_tipo_entrada,
+                id_evento: tipoRows[0].id_evento,
+                cantidad,
+                precio_unitario: tipoRows[0].precio,
+                subtotal_item
+            });
+        }
+
+        const ivaFinal = roundToTwo(subtotalCalculado * IVA_RATE);
+        const totalFinal = roundToTwo(subtotalCalculado + ivaFinal);
+        const codigo_orden = generarCodigoOrden();
+        const comprobanteUrl = `/uploads/comprobantes/${req.file.filename}`; // Ruta para leer en el frontend
+
+        // 3. Insertar la orden
+        const [ordenInsert] = await connection.execute(
+            `INSERT INTO ordenes (id_cliente, codigo_orden, subtotal, iva, total, estado, metodo_pago, comprobante_url, fecha_creacion, fecha_actualizacion)
+             VALUES (?, ?, ?, ?, ?, 'pendiente', 'Transferencia', ?, NOW(), NOW())`,
+            [id_cliente, codigo_orden, subtotalCalculado, ivaFinal, totalFinal, comprobanteUrl]
+        );
+        const id_orden = ordenInsert.insertId;
+
+        // 4. Insertar detalle, restar stock y generar ENTRADAS CONGELADAS
+        for (const item of itemsValidados) {
+            await connection.execute(
+                `INSERT INTO orden_detalle (id_orden, id_tipo_entrada, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?)`,
+                [id_orden, item.id_tipo_entrada, item.cantidad, item.precio_unitario, item.subtotal_item]
+            );
+
+            await connection.execute(
+                `UPDATE tipos_entrada SET stock_disponible = stock_disponible - ? WHERE id_tipo_entrada = ?`,
+                [item.cantidad, item.id_tipo_entrada]
+            );
+
+            // ¡AQUÍ NACEN LAS ENTRADAS CONGELADAS!
+            for (let i = 0; i < item.cantidad; i++) {
+                const codEntrada = generarCodigoEntrada('ENT');
+                const codQr = generarCodigoEntrada('QR');
+
+                await connection.execute(
+                    `INSERT INTO entradas (id_orden, id_evento, id_tipo_entrada, codigo_entrada, codigo_qr, nombre_asistente, email_asistente, estado)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente_verificacion')`,
+                    [id_orden, item.id_evento, item.id_tipo_entrada, codEntrada, codQr, `${nombres} ${apellidos}`, email]
+                );
+            }
+        }
+
+        await connection.commit();
+
+        return res.status(201).json({
+            ok: true,
+            message: 'Orden creada. Comprobante en revisión.',
+            orden: { codigo_orden }
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('❌ Error creando transferencia:', error);
+        return res.status(500).json({ ok: false, message: 'Error interno del servidor' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// =========================
+// APROBAR TRANSFERENCIA (ADMIN)
+// =========================
+router.post('/aprobar-transferencia', async (req, res) => {
+    let connection;
+    try {
+        const { codigo_orden } = req.body;
+
+        if (!codigo_orden) {
+            return res.status(400).json({ ok: false, message: 'Código de orden requerido' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        // 1. Verificar que la orden exista y esté pendiente
+        const [ordenRows] = await connection.execute(
+            `SELECT id_orden FROM ordenes WHERE codigo_orden = ? AND estado = 'pendiente' FOR UPDATE`,
+            [codigo_orden]
+        );
+
+        if (ordenRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ ok: false, message: 'La orden no existe o ya fue procesada' });
+        }
+
+        const id_orden = ordenRows[0].id_orden;
+
+        // 2. Aprobar Orden
+        await connection.execute(
+            `UPDATE ordenes SET estado = 'pagada', observacion = CONCAT(IFNULL(observacion, ''), ' | Pago por transferencia aprobado.') WHERE id_orden = ?`,
+            [id_orden]
+        );
+
+        // 3. Activar las entradas congeladas
+        await connection.execute(
+            `UPDATE entradas SET estado = 'generada' WHERE id_orden = ? AND estado = 'pendiente_verificacion'`,
+            [id_orden]
+        );
+
+        await connection.commit();
+
+        // Aquí de forma asíncrona podrías llamar a tu EmailService.enviarConfirmacionCompra()
+        // const EmailService = require('../services/EmailService');
+        // EmailService.enviarConfirmacion(codigo_orden);
+
+        return res.json({ ok: true, message: 'Transferencia aprobada y QRs activados' });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('❌ Error aprobando transferencia:', error);
+        return res.status(500).json({ ok: false, message: 'Error interno del servidor' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 

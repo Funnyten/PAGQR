@@ -351,14 +351,40 @@ function renderDetalleAsistente(data) {
 
     const estadoElement = document.getElementById('detalleEstadoEntrada');
     if (estadoElement) {
-        const estado = String(entrada.estado || 'desconocido');
+        const estado = String(entrada.estado || 'desconocido').toLowerCase();
         const clases = {
             usada: 'text-bg-success',
             generada: 'text-bg-primary',
             enviada: 'text-bg-info',
-            cancelada: 'text-bg-danger'
+            cancelada: 'text-bg-danger',
+            pendiente_verificacion: 'text-bg-warning'
         };
         estadoElement.innerHTML = `<span class="badge ${clases[estado] || 'text-bg-secondary'}">${escapeHtml(estado)}</span>`;
+    }
+
+    const panelAprobacion = document.getElementById('panelAprobacionTransferencia');
+    const btnVerComprobante = document.getElementById('btnVerComprobanteAdmin');
+    const btnAprobarPago = document.getElementById('btnAprobarPagoAdmin');
+
+    if (panelAprobacion && btnVerComprobante && btnAprobarPago) {
+        if (String(entrada.estado).toLowerCase() === 'pendiente_verificacion') {
+            panelAprobacion.classList.remove('d-none');
+
+            btnVerComprobante.onclick = () => {
+                const comprobanteUrl = orden.comprobante_url;
+                if (comprobanteUrl) {
+                    window.open(comprobanteUrl, '_blank');
+                } else {
+                    mostrarToast('Esta orden no tiene un comprobante adjunto', 'warning');
+                }
+            };
+
+            btnAprobarPago.onclick = () => {
+                aprobarPagoTransferencia(orden.codigo_orden, entrada.id_entrada);
+            };
+        } else {
+            panelAprobacion.classList.add('d-none');
+        }
     }
 
     establecerTexto(
@@ -379,6 +405,44 @@ function renderDetalleAsistente(data) {
                 </tr>
             `).join('')
             : '<tr><td colspan="5" class="text-center text-muted py-3">Sin validaciones registradas</td></tr>';
+    }
+}
+
+
+async function aprobarPagoTransferencia(codigoOrden, idEntradaActual) {
+    if (!confirm('¿Confirmas que el dinero ya está en la cuenta? Esto activará los códigos QR y enviará las entradas al cliente.')) {
+        return;
+    }
+
+    const btnAprobar = document.getElementById('btnAprobarPagoAdmin');
+    const textoOriginal = btnAprobar.innerHTML;
+
+    try {
+        btnAprobar.disabled = true;
+        btnAprobar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Aprobando...';
+
+        const resp = await fetchConCsrf('/api/ordenes/aprobar-transferencia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo_orden: codigoOrden })
+        });
+
+        const data = await resp.json().catch(() => ({}));
+
+        if (data.ok) {
+            mostrarToast('¡Pago aprobado! Entradas activadas y enviadas.', 'success');
+            await verDetalle(idEntradaActual);
+            await cargarResumen();
+            await cargarAsistentes(false);
+        } else {
+            mostrarToast(data.message || 'Error al aprobar el pago', 'error');
+        }
+    } catch (error) {
+        console.error('Error aprobando transferencia:', error);
+        mostrarToast('Error de conexión al aprobar el pago', 'error');
+    } finally {
+        btnAprobar.disabled = false;
+        btnAprobar.innerHTML = textoOriginal;
     }
 }
 

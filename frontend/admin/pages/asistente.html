@@ -465,6 +465,22 @@
                                 <strong id="detalleFechaUso">-</strong>
                             </div>
                         </div>
+                        <div class="col-12 d-none" id="panelAprobacionTransferencia">
+                            <div class="alert alert-warning d-flex flex-column flex-md-row justify-content-between align-items-center mb-0 mt-2 border-warning">
+                                <div class="mb-2 mb-md-0">
+                                    <h6 class="mb-1 fw-bold text-dark"><i class="bi bi-bank me-2"></i>Pago por Transferencia</h6>
+                                    <small class="text-dark">Esta entrada está <strong>Pendiente de Confirmación</strong>. Revisa el comprobante antes de aprobarla para que el QR sea válido.</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-dark" id="btnVerComprobanteAdmin">
+                                        <i class="bi bi-image me-1"></i>Ver Comprobante
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-success shadow-sm" id="btnAprobarPagoAdmin">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Aprobar Pago
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">

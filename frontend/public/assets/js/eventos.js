@@ -968,6 +968,96 @@ async function manejarPagoPayPhone() {
     }
 }
 
+// =====================================
+// LÓGICA DE TRANSFERENCIA BANCARIA
+// =====================================
+function actualizarMetodoPago() {
+    const radioTransferencia = $('pagoTransferencia');
+    const cajaTransferencia = $('datosTransferencia');
+    const btnPayphone = $('btnPagarPayPhone');
+    const btnTransferencia = $('btnEnviarComprobante');
+    const comprobanteInput = $('comprobantePago');
+
+    if (radioTransferencia && radioTransferencia.checked) {
+        cajaTransferencia?.classList.remove('d-none');
+        btnPayphone?.classList.add('d-none');
+        btnTransferencia?.classList.remove('d-none');
+        comprobanteInput?.setAttribute('required', 'true');
+    } else {
+        cajaTransferencia?.classList.add('d-none');
+        btnPayphone?.classList.remove('d-none');
+        btnTransferencia?.classList.add('d-none');
+        comprobanteInput?.removeAttribute('required');
+    }
+}
+
+async function manejarPagoTransferencia() {
+    if (pagoEnProceso) return;
+    if (!validarFormularioCompra()) return;
+
+    const comprobanteInput = $('comprobantePago');
+    if (!comprobanteInput || !comprobanteInput.files || comprobanteInput.files.length === 0) {
+        mostrarAlerta('Por favor, adjunta la foto o PDF de tu comprobante de pago.');
+        return;
+    }
+
+    try {
+        pagoEnProceso = true;
+        const btn = $('btnEnviarComprobante');
+        const textoOriginal = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+
+        const payloadOrden = construirPayloadOrden();
+
+        // Usamos FormData porque enviamos un archivo (la foto)
+        const formData = new FormData();
+        formData.append('comprobante', comprobanteInput.files[0]);
+        formData.append('cliente', JSON.stringify(payloadOrden.cliente));
+        formData.append('items', JSON.stringify(payloadOrden.items));
+        formData.append('subtotal', payloadOrden.subtotal);
+        formData.append('iva', payloadOrden.iva);
+        formData.append('total', payloadOrden.total);
+
+        // Obtenemos el token CSRF manualmente para inyectarlo en el fetch
+        const csrfToken = await obtenerCsrfToken(false);
+
+        const response = await fetch('/api/ordenes/transferencia', {
+            method: 'POST',
+            headers: {
+                'CSRF-Token': csrfToken // Token de seguridad obligatorio
+            },
+            body: formData
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.ok) {
+            reiniciarCompraCompleta();
+            if (compraModal) compraModal.hide();
+
+            alert('¡Comprobante enviado con éxito! 🥳\n\nRevisaremos tu transferencia y máximo en 24 horas recibirás tus entradas en tu correo electrónico.');
+
+            // Redirigimos a la pantalla de éxito mandando el modo transferencia
+            window.location.href = `/exito-pago.html?orden=${data.orden.codigo_orden}&modo=transferencia`;
+        } else {
+            mostrarAlerta(data.message || 'Error al enviar el comprobante. Intenta nuevamente.');
+        }
+
+    } catch (error) {
+        console.error('Error enviando transferencia:', error);
+        mostrarAlerta('Error de conexión. Revisa tu internet e inténtalo de nuevo.');
+    } finally {
+        pagoEnProceso = false;
+        const btn = $('btnEnviarComprobante');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Enviar Comprobante';
+        }
+    }
+}
+
 function registrarEventosUI() {
     $('searchInput')?.addEventListener('input', aplicarFiltros);
     $('categorySelect')?.addEventListener('change', aplicarFiltros);
@@ -995,13 +1085,28 @@ function registrarEventosUI() {
         actualizarResumenCompra();
     });
 
+    // --- NUEVO: Escuchadores para los botones de radio (Payphone vs Transferencia) ---
+    $('pagoPayphone')?.addEventListener('change', actualizarMetodoPago);
+    $('pagoTransferencia')?.addEventListener('change', actualizarMetodoPago);
+
+    // --- MODIFICADO: Lógica inteligente del Submit ---
     $('compraForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await manejarPagoPayPhone();
+        const esTransferencia = $('pagoTransferencia')?.checked;
+
+        if (esTransferencia) {
+            await manejarPagoTransferencia();
+        } else {
+            await manejarPagoPayPhone();
+        }
     });
 
+    // --- MODIFICADO: Click directo del botón PayPhone (para que no cruce cables) ---
     $('btnPagarPayPhone')?.addEventListener('click', async () => {
-        await manejarPagoPayPhone();
+        const esTransferencia = $('pagoTransferencia')?.checked;
+        if (!esTransferencia) {
+            await manejarPagoPayPhone();
+        }
     });
 }
 

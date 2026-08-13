@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS ordenes (
     metodo_pago VARCHAR(50) DEFAULT 'Payphone',
     fecha_expiracion DATETIME NULL,
     observacion TEXT NULL,
+    comprobante_url VARCHAR(255) NULL,
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_ordenes_idempotency_key UNIQUE (idempotency_key),
@@ -139,7 +140,7 @@ CREATE TABLE IF NOT EXISTS entradas (
     codigo_qr VARCHAR(255) NOT NULL UNIQUE,
     nombre_asistente VARCHAR(150) NULL,
     email_asistente VARCHAR(150) NULL,
-    estado ENUM('generada', 'enviada', 'usada', 'cancelada') NOT NULL DEFAULT 'generada',
+    estado ENUM('generada', 'enviada', 'usada', 'cancelada', 'pendiente_verificacion') NOT NULL DEFAULT 'generada',
     fecha_generacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_uso DATETIME NULL,
     CONSTRAINT fk_entradas_orden

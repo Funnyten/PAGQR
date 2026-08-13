@@ -254,12 +254,13 @@
 
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="form-label"><i class="bi bi-image me-1"></i> Imagen</label>
+                                <label class="form-label"><i class="bi bi-images me-1"></i> Imágenes</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-image"></i></span>
-                                    <input type="file" class="form-control" name="imagen" accept="image/*">
+                                    <input type="file" class="form-control" id="imagenesEvento" name="imagenes" accept="image/*" multiple>
                                 </div>
-                                <small class="text-muted">Formatos: JPG, PNG, GIF, WEBP (max 5MB)</small>
+                                <small class="text-muted">Hasta 10 archivos JPG, PNG, GIF o WEBP (máx. 5 MB cada uno).</small>
+                                <div id="imagenesPreview" class="event-images-preview mt-2" style="display: none;"></div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label"><i class="bi bi-person-badge me-1"></i> Organizador</label>
@@ -313,6 +314,9 @@
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button class="btn btn-outline-primary" type="button" id="btnVistaPreviaEvento">
+                            <i class="bi bi-eye me-1"></i>Vista previa
+                        </button>
                         <button class="btn btn-primary" type="submit">Guardar Evento</button>
                     </div>
                 </form>
@@ -321,6 +325,50 @@
     </div>
 
     <!-- Vista previa de la imagen actual (solo en edición) -->
+    <div class="modal fade" id="modalVistaPreviaEvento" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content preview-event-modal">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Vista previa del evento</h5>
+                        <small class="text-muted">Esta vista no publica ni guarda el evento.</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="preview-event-layout">
+                        <div class="preview-event-media" id="previewEventoImagenes">
+                            <div class="preview-event-placeholder"><i class="bi bi-image"></i><span>Sin imágenes</span></div>
+                        </div>
+                        <div class="preview-event-info">
+                            <span class="preview-event-category" id="previewEventoCategoria">General</span>
+                            <h2 id="previewEventoTitulo">Título del evento</h2>
+                            <p class="preview-event-description" id="previewEventoDescripcion">Sin descripción.</p>
+                            <div class="preview-event-details">
+                                <div><i class="bi bi-calendar-event"></i><span id="previewEventoFecha">Fecha por definir</span></div>
+                                <div><i class="bi bi-clock"></i><span id="previewEventoHora">Hora por definir</span></div>
+                                <div><i class="bi bi-geo-alt"></i><span id="previewEventoLugar">Lugar por definir</span></div>
+                                <div><i class="bi bi-person-badge"></i><span id="previewEventoOrganizador">Organizador por definir</span></div>
+                            </div>
+                            <div class="preview-event-price">
+                                <small>Desde</small>
+                                <strong id="previewEventoPrecio">$0.00</strong>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-lg rounded-pill" disabled>
+                                <i class="bi bi-ticket-perforated me-1"></i>Comprar entradas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                        <i class="bi bi-pencil me-1"></i>Volver a editar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="imagenPreview" class="mt-2" style="display: none; text-align: center;">
         <img src="" alt="Vista previa" style="max-width: 100%; max-height: 150px; border-radius: 8px;">
         <p class="text-muted small mt-1">Imagen actual</p>

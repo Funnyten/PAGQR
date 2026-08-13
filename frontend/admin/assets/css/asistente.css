@@ -1219,3 +1219,41 @@ body {
         min-height: 44px;
     }
 }
+
+@media (max-width: 576px) {
+    .detalle-asistente-dialog .modal-content {
+        border: 0;
+        border-radius: 0;
+        min-height: 100dvh;
+    }
+
+    .detalle-asistente-dialog .modal-header,
+    .detalle-asistente-dialog .modal-footer {
+        padding: 0.85rem 1rem;
+    }
+
+    .detalle-asistente-dialog .modal-body {
+        padding: 1rem;
+    }
+
+    .detalle-asistente-dialog .modal-title {
+        font-size: 1.05rem;
+    }
+
+    .detalle-asistente-dialog .detail-box {
+        padding: 0.75rem;
+    }
+}
+
+.detalle-asistente-dialog .modal-body {
+    overflow-x: hidden;
+}
+
+.detalle-asistente-dialog .detalle-validaciones-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.detalle-asistente-dialog .detalle-validaciones-wrapper table {
+    min-width: 680px;
+}

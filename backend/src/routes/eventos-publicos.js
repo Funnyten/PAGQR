@@ -7,6 +7,31 @@ function normalizarEntero(value, fallback = 0) {
     return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
+async function adjuntarImagenes(eventos) {
+    if (!eventos.length) return eventos;
+    const ids = eventos.map(evento => Number(evento.id_evento));
+    const placeholders = ids.map(() => '?').join(',');
+    const [imagenes] = await db.execute(
+        `SELECT id_imagen, id_evento, imagen_url, orden
+         FROM evento_imagenes
+         WHERE id_evento IN (${placeholders})
+         ORDER BY orden ASC, id_imagen ASC`,
+        ids
+    );
+    const porEvento = new Map();
+    imagenes.forEach(imagen => {
+        if (!porEvento.has(imagen.id_evento)) porEvento.set(imagen.id_evento, []);
+        porEvento.get(imagen.id_evento).push(imagen);
+    });
+    return eventos.map(evento => {
+        const lista = porEvento.get(evento.id_evento) || [];
+        if (evento.imagen_url && !lista.some(imagen => imagen.imagen_url === evento.imagen_url)) {
+            lista.unshift({ id_imagen: null, imagen_url: evento.imagen_url, orden: -1 });
+        }
+        return { ...evento, imagenes: lista };
+    });
+}
+
 // GET /api/eventos-publicos
 router.get('/', async (req, res) => {
     try {
@@ -51,9 +76,10 @@ router.get('/', async (req, res) => {
             ORDER BY e.fecha_evento ASC
         `);
 
+        const eventos = await adjuntarImagenes(rows);
         res.json({
             ok: true,
-            data: rows
+            data: eventos
         });
     } catch (error) {
         console.error('❌ Error obteniendo eventos públicos:', error);
@@ -125,9 +151,10 @@ router.get('/:id', async (req, res) => {
             });
         }
 
+        const [evento] = await adjuntarImagenes(rows);
         res.json({
             ok: true,
-            data: rows[0]
+            data: evento
         });
     } catch (error) {
         console.error('❌ Error obteniendo detalle público del evento:', error);

@@ -1,5 +1,6 @@
 const API_BASE = '/api/eventos';
 const API_TIPOS = '/api/tipos-entrada';
+const ZONA_HORARIA_EVENTOS = 'America/Guayaquil';
 
 // Elementos del DOM
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -7,6 +8,8 @@ const toastElement = document.getElementById('toastNotification');
 const toast = toastElement ? new bootstrap.Toast(toastElement, { autohide: true, delay: 3500 }) : null;
 const modalEventoElement = document.getElementById('modalEvento');
 const modalEvento = modalEventoElement ? new bootstrap.Modal(modalEventoElement) : null;
+const modalVistaPreviaElement = document.getElementById('modalVistaPreviaEvento');
+const modalVistaPreviaEvento = modalVistaPreviaElement ? new bootstrap.Modal(modalVistaPreviaElement) : null;
 const formEvento = document.getElementById('formEvento');
 const searchInput = document.getElementById('searchEventos');
 
@@ -15,6 +18,8 @@ let currentEventIdForTipos = null;
 let tiposCache = [];
 let logoutModalInstance = null;
 let adminCsrfToken = '';
+let mostrandoVistaPreviaEvento = false;
+let imagenesExistentesEvento = [];
 
 // =========================
 // CSRF
@@ -113,7 +118,110 @@ function formatearFecha(fecha) {
     if (!fecha) return 'No definida';
     const f = new Date(fecha);
     if (isNaN(f.getTime())) return 'No definida';
-    return f.toLocaleString();
+    return f.toLocaleString('es-EC', { timeZone: ZONA_HORARIA_EVENTOS });
+}
+
+function formatearFechaParaInput(fecha) {
+    if (!fecha) return '';
+    const valor = new Date(fecha);
+    if (Number.isNaN(valor.getTime())) return '';
+
+    const partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: ZONA_HORARIA_EVENTOS,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(valor);
+    const obtener = tipo => partes.find(parte => parte.type === tipo)?.value || '';
+
+    return `${obtener('year')}-${obtener('month')}-${obtener('day')}T${obtener('hour')}:${obtener('minute')}`;
+}
+
+function establecerTextoVistaPrevia(id, valor, fallback) {
+    const elemento = document.getElementById(id);
+    if (elemento) elemento.textContent = String(valor || '').trim() || fallback;
+}
+
+function actualizarVistaPreviaEvento() {
+    if (!formEvento) return;
+    const datos = new FormData(formEvento);
+    const fechaValor = String(datos.get('fecha_evento') || '');
+    const fecha = fechaValor ? new Date(fechaValor) : null;
+    const fechaValida = fecha && !Number.isNaN(fecha.getTime());
+
+    establecerTextoVistaPrevia('previewEventoTitulo', datos.get('titulo'), 'Título del evento');
+    establecerTextoVistaPrevia('previewEventoCategoria', datos.get('categoria'), 'General');
+    establecerTextoVistaPrevia('previewEventoDescripcion', datos.get('descripcion'), 'Sin descripción.');
+    establecerTextoVistaPrevia('previewEventoOrganizador', datos.get('organizador'), 'Organizador por definir');
+    establecerTextoVistaPrevia(
+        'previewEventoLugar',
+        [datos.get('lugar'), datos.get('ciudad')].map(valor => String(valor || '').trim()).filter(Boolean).join(' · '),
+        'Lugar por definir'
+    );
+    establecerTextoVistaPrevia(
+        'previewEventoFecha',
+        fechaValida ? fecha.toLocaleDateString('es-EC', { dateStyle: 'long' }) : '',
+        'Fecha por definir'
+    );
+    establecerTextoVistaPrevia(
+        'previewEventoHora',
+        fechaValida ? fecha.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }) : '',
+        'Hora por definir'
+    );
+
+    const precio = Number(datos.get('precio'));
+    establecerTextoVistaPrevia(
+        'previewEventoPrecio',
+        Number.isFinite(precio) ? `$${precio.toFixed(2)}` : '$0.00',
+        '$0.00'
+    );
+
+    const contenedor = document.getElementById('previewEventoImagenes');
+    if (!contenedor) return;
+    const urls = Array.from(document.querySelectorAll('#imagenesPreview img'))
+        .map(imagen => imagen.src)
+        .filter(Boolean);
+
+    contenedor.innerHTML = '';
+    if (!urls.length) {
+        contenedor.innerHTML = '<div class="preview-event-placeholder"><i class="bi bi-image"></i><span>Sin imágenes</span></div>';
+        return;
+    }
+
+    const carousel = document.createElement('div');
+    carousel.id = 'carouselVistaPreviaEvento';
+    carousel.className = 'carousel slide h-100';
+    carousel.dataset.bsRide = 'carousel';
+    carousel.dataset.bsInterval = '30000';
+
+    const inner = document.createElement('div');
+    inner.className = 'carousel-inner h-100';
+    urls.forEach((url, index) => {
+        const item = document.createElement('div');
+        item.className = `carousel-item h-100${index === 0 ? ' active' : ''}`;
+        const imagen = document.createElement('img');
+        imagen.src = url;
+        imagen.alt = `Imagen ${index + 1} del evento`;
+        imagen.className = 'preview-event-image';
+        item.appendChild(imagen);
+        inner.appendChild(item);
+    });
+    carousel.appendChild(inner);
+
+    if (urls.length > 1) {
+        carousel.insertAdjacentHTML('beforeend', `
+            <button class="carousel-control-prev" type="button" data-bs-target="#carouselVistaPreviaEvento" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">Anterior</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#carouselVistaPreviaEvento" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">Siguiente</span>
+            </button>
+        `);
+    }
+    contenedor.appendChild(carousel);
 }
 
 function escapeHtml(str) {
@@ -347,6 +455,11 @@ async function guardarEvento(event) {
 
         const preview = document.getElementById('imagenPreview');
         if (preview) preview.style.display = 'none';
+        const imagenesPreview = document.getElementById('imagenesPreview');
+        if (imagenesPreview) {
+            imagenesPreview.innerHTML = '';
+            imagenesPreview.style.display = 'none';
+        }
 
         cargarEventos();
     } catch (error) {
@@ -395,24 +508,29 @@ async function editarEvento(id) {
         formEvento.lugar.value = evento.lugar || '';
         formEvento.direccion.value = evento.direccion || '';
         formEvento.ciudad.value = evento.ciudad || '';
-        formEvento.fecha_evento.value = evento.fecha_evento ? evento.fecha_evento.slice(0, 16) : '';
-        formEvento.fecha_fin_evento.value = evento.fecha_fin_evento ? evento.fecha_fin_evento.slice(0, 16) : '';
+        formEvento.fecha_evento.value = formatearFechaParaInput(evento.fecha_evento);
+        formEvento.fecha_fin_evento.value = formatearFechaParaInput(evento.fecha_fin_evento);
         formEvento.organizador.value = evento.organizador || '';
         formEvento.estado.value = evento.estado || 'borrador';
         formEvento.precio.value = evento.precio || 0;
         formEvento.payphone_token.value = evento.payphone_token || '';
         formEvento.payphone_app_id.value = evento.payphone_app_id || '';
 
-        const previewContainer = document.getElementById('imagenPreview');
-        if (previewContainer && evento.imagen_url) {
-            const img = previewContainer.querySelector('img');
-            if (img) {
-                img.src = evento.imagen_url.startsWith('http')
-                    ? evento.imagen_url
-                    : `${window.location.origin}${evento.imagen_url}`;
-                previewContainer.style.display = 'block';
-            }
+        const previewContainer = document.getElementById('imagenesPreview');
+        const imagenes = Array.isArray(evento.imagenes) && evento.imagenes.length
+            ? evento.imagenes
+            : (evento.imagen_url ? [{ imagen_url: evento.imagen_url }] : []);
+        imagenesExistentesEvento = imagenes.map(imagen => imagen.imagen_url).filter(Boolean);
+        if (previewContainer && imagenes.length) {
+            previewContainer.innerHTML = imagenes.map((imagen, index) => {
+                const url = imagen.imagen_url.startsWith('http')
+                    ? imagen.imagen_url
+                    : `${window.location.origin}${imagen.imagen_url}`;
+                return `<img src="${escapeHtml(url)}" alt="Imagen ${index + 1} del evento" class="event-image-thumbnail">`;
+            }).join('');
+            previewContainer.style.display = 'grid';
         } else if (previewContainer) {
+            previewContainer.innerHTML = '';
             previewContainer.style.display = 'none';
         }
 
@@ -432,6 +550,7 @@ async function editarEvento(id) {
 
 function abrirModalEvento() {
     currentEditId = null;
+    imagenesExistentesEvento = [];
     if (formEvento) formEvento.reset();
 
     const modalTitle = document.getElementById('modalTitle');
@@ -439,6 +558,11 @@ function abrirModalEvento() {
 
     const preview = document.getElementById('imagenPreview');
     if (preview) preview.style.display = 'none';
+    const imagenesPreview = document.getElementById('imagenesPreview');
+    if (imagenesPreview) {
+        imagenesPreview.innerHTML = '';
+        imagenesPreview.style.display = 'none';
+    }
 
     if (modalEvento) modalEvento.show();
 }
@@ -668,6 +792,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         formEvento.addEventListener('submit', guardarEvento);
     }
 
+    const imagenesInput = document.getElementById('imagenesEvento');
+    if (imagenesInput) {
+        imagenesInput.addEventListener('change', () => {
+            const preview = document.getElementById('imagenesPreview');
+            if (!preview) return;
+            const archivos = Array.from(imagenesInput.files || []);
+            const existentesHtml = imagenesExistentesEvento.map((url, index) => {
+                const ruta = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+                return `<img src="${escapeHtml(ruta)}" alt="Imagen actual ${index + 1}" class="event-image-thumbnail">`;
+            }).join('');
+            const nuevasHtml = archivos.map((archivo, index) =>
+                `<img src="${URL.createObjectURL(archivo)}" alt="Nueva imagen ${index + 1}" class="event-image-thumbnail">`
+            ).join('');
+            preview.innerHTML = existentesHtml + nuevasHtml;
+            preview.style.display = imagenesExistentesEvento.length || archivos.length ? 'grid' : 'none';
+        });
+    }
+
+    const btnVistaPreviaEvento = document.getElementById('btnVistaPreviaEvento');
+    if (btnVistaPreviaEvento && modalEvento && modalVistaPreviaEvento) {
+        btnVistaPreviaEvento.addEventListener('click', () => {
+            actualizarVistaPreviaEvento();
+            mostrandoVistaPreviaEvento = true;
+            modalEvento.hide();
+        });
+    }
+
+    if (modalVistaPreviaElement) {
+        modalVistaPreviaElement.addEventListener('hidden.bs.modal', () => {
+            if (!mostrandoVistaPreviaEvento || !modalEvento) return;
+            mostrandoVistaPreviaEvento = false;
+            modalEvento.show();
+        });
+    }
+
     if (searchInput) {
         searchInput.addEventListener('input', filtrarEventos);
     }
@@ -684,10 +843,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (modalEventoElement) {
         modalEventoElement.addEventListener('hidden.bs.modal', () => {
+            if (mostrandoVistaPreviaEvento) {
+                modalVistaPreviaEvento?.show();
+                return;
+            }
             if (formEvento) formEvento.reset();
             currentEditId = null;
+            imagenesExistentesEvento = [];
             const preview = document.getElementById('imagenPreview');
             if (preview) preview.style.display = 'none';
+            const imagenesPreview = document.getElementById('imagenesPreview');
+            if (imagenesPreview) {
+                imagenesPreview.innerHTML = '';
+                imagenesPreview.style.display = 'none';
+            }
         });
     }
 

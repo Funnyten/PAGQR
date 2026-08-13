@@ -206,7 +206,53 @@ const upload = multer({
 
         cb(new Error('Solo se permiten imágenes: jpeg, jpg, png, gif, webp'));
     }
-}).single('imagen');
+}).fields([
+    { name: 'imagenes', maxCount: 10 },
+    { name: 'imagen', maxCount: 1 }
+]);
+
+function obtenerArchivos(req) {
+    if (!req.files) return [];
+    return [...(req.files.imagenes || []), ...(req.files.imagen || [])];
+}
+
+function eliminarArchivos(archivos = []) {
+    archivos.forEach(file => eliminarArchivoSiExiste(`/uploads/eventos/${file.filename}`));
+}
+
+async function guardarImagenesEvento(idEvento, urls, ordenInicial = 0) {
+    for (let index = 0; index < urls.length; index++) {
+        await db.execute(
+            'INSERT INTO evento_imagenes (id_evento, imagen_url, orden) VALUES (?, ?, ?)',
+            [idEvento, urls[index], ordenInicial + index]
+        );
+    }
+}
+
+async function adjuntarImagenes(eventos) {
+    if (!eventos.length) return eventos;
+    const ids = eventos.map(evento => Number(evento.id_evento));
+    const placeholders = ids.map(() => '?').join(',');
+    const [imagenes] = await db.execute(
+        `SELECT id_imagen, id_evento, imagen_url, orden
+         FROM evento_imagenes
+         WHERE id_evento IN (${placeholders})
+         ORDER BY orden ASC, id_imagen ASC`,
+        ids
+    );
+    const porEvento = new Map();
+    imagenes.forEach(imagen => {
+        if (!porEvento.has(imagen.id_evento)) porEvento.set(imagen.id_evento, []);
+        porEvento.get(imagen.id_evento).push(imagen);
+    });
+    return eventos.map(evento => {
+        const lista = porEvento.get(evento.id_evento) || [];
+        if (evento.imagen_url && !lista.some(imagen => imagen.imagen_url === evento.imagen_url)) {
+            lista.unshift({ id_imagen: null, id_evento: evento.id_evento, imagen_url: evento.imagen_url, orden: -1 });
+        }
+        return { ...evento, imagenes: lista };
+    });
+}
 
 // ==========================================
 // 🚨 RUTA DE EMERGENCIA (BORRAR EN PRODUCCIÓN)
@@ -238,18 +284,14 @@ router.get('/parche-db', async (req, res) => {
 // =========================
 router.post('/', upload, async (req, res) => {
     try {
-        let imagenUrl = null;
-
-        if (req.file) {
-            imagenUrl = `/uploads/eventos/${req.file.filename}`;
-        }
+        const archivos = obtenerArchivos(req);
+        const imagenesUrl = archivos.map(file => `/uploads/eventos/${file.filename}`);
+        const imagenUrl = imagenesUrl[0] || null;
 
         const { errores, dataNormalizada } = validarCamposEvento(req.body || {});
 
         if (errores.length > 0) {
-            if (req.file) {
-                eliminarArchivoSiExiste(imagenUrl);
-            }
+            eliminarArchivos(archivos);
 
             return res.status(400).json({
                 ok: false,
@@ -297,16 +339,17 @@ router.post('/', upload, async (req, res) => {
             dataNormalizada.payphone_token
         ]);
 
+        await guardarImagenesEvento(result.insertId, imagenesUrl);
+
         return res.json({
             ok: true,
             id_evento: result.insertId,
-            imagen_url: imagenUrl
+            imagen_url: imagenUrl,
+            imagenes: imagenesUrl
         });
     } catch (error) {
         console.error('❌ ERROR CREAR EVENTO:', error);
-        if (req.file) {
-            eliminarArchivoSiExiste(`/uploads/eventos/${req.file.filename}`);
-        }
+        eliminarArchivos(obtenerArchivos(req));
         return res.status(500).json({
             ok: false,
             message: `Error de Base de Datos: ${error.message}`
@@ -324,7 +367,7 @@ router.get('/', async (req, res) => {
             ORDER BY fecha_evento DESC
         `);
 
-        return res.json(rows);
+        return res.json(await adjuntarImagenes(rows));
     } catch (error) {
         console.error('❌ ERROR LISTAR EVENTOS:', error);
         return res.status(500).json({
@@ -360,7 +403,7 @@ router.get('/:id', async (req, res) => {
             });
         }
 
-        return res.json(rows[0]);
+        return res.json((await adjuntarImagenes(rows))[0]);
     } catch (error) {
         console.error('❌ ERROR OBTENER EVENTO:', error);
         return res.status(500).json({
@@ -415,6 +458,7 @@ router.get('/:id/tipos', async (req, res) => {
 // =========================
 router.put('/:id', upload, async (req, res) => {
     try {
+        const archivos = obtenerArchivos(req);
         const { id } = req.params;
 
         if (!isPositiveInteger(id)) {
@@ -425,9 +469,7 @@ router.put('/:id', upload, async (req, res) => {
         }
 
         if (!req.body || Object.keys(req.body).length === 0) {
-            if (req.file) {
-                eliminarArchivoSiExiste(`/uploads/eventos/${req.file.filename}`);
-            }
+            eliminarArchivos(archivos);
 
             return res.status(400).json({
                 ok: false,
@@ -441,9 +483,7 @@ router.put('/:id', upload, async (req, res) => {
         );
 
         if (!eventoRows.length) {
-            if (req.file) {
-                eliminarArchivoSiExiste(`/uploads/eventos/${req.file.filename}`);
-            }
+            eliminarArchivos(archivos);
 
             return res.status(404).json({
                 ok: false,
@@ -453,18 +493,13 @@ router.put('/:id', upload, async (req, res) => {
 
         const eventoActual = eventoRows[0];
         let imagenUrl = eventoActual.imagen_url || null;
-        const imagenAnterior = eventoActual.imagen_url || null;
-
-        if (req.file) {
-            imagenUrl = `/uploads/eventos/${req.file.filename}`;
-        }
+        const nuevasUrls = archivos.map(file => `/uploads/eventos/${file.filename}`);
+        if (nuevasUrls.length && !imagenUrl) imagenUrl = nuevasUrls[0];
 
         const { errores, dataNormalizada } = validarCamposEvento(req.body || {});
 
         if (errores.length > 0) {
-            if (req.file) {
-                eliminarArchivoSiExiste(imagenUrl);
-            }
+            eliminarArchivos(archivos);
 
             return res.status(400).json({
                 ok: false,
@@ -511,21 +546,22 @@ router.put('/:id', upload, async (req, res) => {
             Number(id)
         ]);
 
-        if (req.file && imagenAnterior && imagenAnterior !== imagenUrl) {
-            eliminarArchivoSiExiste(imagenAnterior);
-        }
+        const [[ordenRow]] = await db.execute(
+            'SELECT COALESCE(MAX(orden), -1) AS ultimo_orden FROM evento_imagenes WHERE id_evento = ?',
+            [Number(id)]
+        );
+        await guardarImagenesEvento(Number(id), nuevasUrls, Number(ordenRow.ultimo_orden) + 1);
 
         return res.json({
             ok: true,
             message: 'Evento actualizado correctamente',
-            imagen_url: imagenUrl
+            imagen_url: imagenUrl,
+            imagenes_agregadas: nuevasUrls
         });
     } catch (error) {
         console.error('❌ ERROR ACTUALIZAR EVENTO:', error);
 
-        if (req.file) {
-            eliminarArchivoSiExiste(`/uploads/eventos/${req.file.filename}`);
-        }
+        eliminarArchivos(obtenerArchivos(req));
 
         return res.status(500).json({
             ok: false,
@@ -560,7 +596,12 @@ router.delete('/:id', async (req, res) => {
             });
         }
 
-        eliminarArchivoSiExiste(eventoRows[0].imagen_url);
+        const [imagenesRows] = await db.execute(
+            'SELECT imagen_url FROM evento_imagenes WHERE id_evento = ?',
+            [Number(id)]
+        );
+        const urls = new Set([eventoRows[0].imagen_url, ...imagenesRows.map(item => item.imagen_url)]);
+        urls.forEach(eliminarArchivoSiExiste);
 
         await db.execute(`DELETE FROM eventos WHERE id_evento = ?`, [Number(id)]);
 

@@ -14,6 +14,7 @@ const {
 const REQUIRED_TABLES = [
   'clientes',
   'eventos',
+  'evento_imagenes',
   'tipos_entrada',
   'ordenes',
   'orden_detalle',
@@ -25,6 +26,7 @@ const REQUIRED_TABLES = [
 
 const REQUIRED_INDEXES = [
   { table: 'eventos', index: 'idx_eventos_fecha', sql: 'CREATE INDEX idx_eventos_fecha ON eventos(fecha_evento)' },
+  { table: 'evento_imagenes', index: 'idx_evento_imagenes_evento_orden', sql: 'CREATE INDEX idx_evento_imagenes_evento_orden ON evento_imagenes(id_evento, orden)' },
   { table: 'tipos_entrada', index: 'idx_tipos_entrada_evento', sql: 'CREATE INDEX idx_tipos_entrada_evento ON tipos_entrada(id_evento)' },
   { table: 'ordenes', index: 'idx_ordenes_cliente', sql: 'CREATE INDEX idx_ordenes_cliente ON ordenes(id_cliente)' },
   { table: 'ordenes', index: 'idx_ordenes_estado', sql: 'CREATE INDEX idx_ordenes_estado ON ordenes(estado)' },

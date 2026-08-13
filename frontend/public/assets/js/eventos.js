@@ -3,6 +3,8 @@ const API_ORDENES = '/api/ordenes';
 const API_PAGOS = '/api/pagos';
 const API_CSRF = '/api/admin-auth/csrf';
 const PLACEHOLDER_IMAGE = 'https://placehold.co/800x500?text=Evento';
+const INTERVALO_ROTACION_IMAGENES = 30000;
+const ZONA_HORARIA_EVENTOS = 'America/Guayaquil';
 
 const STORAGE_KEYS = {
     lastPurchase: 'pagqr_last_purchase',
@@ -43,6 +45,7 @@ function formatearFecha(fechaStr) {
     if (Number.isNaN(fecha.getTime())) return '--';
 
     return fecha.toLocaleDateString('es-EC', {
+        timeZone: ZONA_HORARIA_EVENTOS,
         year: 'numeric',
         month: 'long',
         day: 'numeric'
@@ -56,6 +59,7 @@ function formatearHora(fechaStr) {
     if (Number.isNaN(fecha.getTime())) return '--';
 
     return fecha.toLocaleTimeString('es-EC', {
+        timeZone: ZONA_HORARIA_EVENTOS,
         hour: '2-digit',
         minute: '2-digit'
     });
@@ -76,6 +80,24 @@ function obtenerImagenEvento(imagenUrl) {
 
     return `/${imagenUrl}`;
 }
+
+function obtenerImagenesEvento(evento) {
+    const imagenes = Array.isArray(evento?.imagenes)
+        ? evento.imagenes.map(item => obtenerImagenEvento(item?.imagen_url)).filter(Boolean)
+        : [];
+    return imagenes.length ? imagenes : [obtenerImagenEvento(evento?.imagen_url)];
+}
+
+setInterval(() => {
+    document.querySelectorAll('.evento-imagen-rotativa[data-evento-id]').forEach(imagen => {
+        const evento = eventos.find(item => Number(item.id_evento) === Number(imagen.dataset.eventoId));
+        const imagenes = obtenerImagenesEvento(evento);
+        if (imagenes.length < 2) return;
+        const siguiente = (Number(imagen.dataset.imagenIndice || 0) + 1) % imagenes.length;
+        imagen.dataset.imagenIndice = String(siguiente);
+        imagen.src = imagenes[siguiente];
+    });
+}, INTERVALO_ROTACION_IMAGENES);
 
 
 function construirUrlGoogleMaps(evento) {
@@ -421,7 +443,7 @@ function crearCardEvento(evento) {
     const fecha = formatearFecha(evento.fecha_evento);
     const hora = formatearHora(evento.fecha_evento);
     const lugar = [evento.lugar, evento.ciudad].filter(Boolean).join(' - ');
-    const imagen = obtenerImagenEvento(evento.imagen_url);
+    const imagen = obtenerImagenesEvento(evento)[0];
     const precio = evento.precio_desde != null ? formatearMoneda(evento.precio_desde) : 'Próximamente';
 
     return `
@@ -430,8 +452,9 @@ function crearCardEvento(evento) {
                 <img
                     src="${escapeHtml(imagen)}"
                     alt="${escapeHtml(evento.titulo || 'Evento')}"
-                    class="card-img-top"
-                    style="height: 220px; object-fit: cover;"
+                    class="card-img-top evento-imagen-rotativa"
+                    data-evento-id="${Number(evento.id_evento)}"
+                    data-imagen-indice="0"
                     onerror="this.src='${PLACEHOLDER_IMAGE}'"
                 >
 
@@ -672,8 +695,11 @@ async function abrirDetalleEvento(idEvento) {
 
         const imagen = $('detalleImagen');
         if (imagen) {
-            imagen.src = obtenerImagenEvento(evento.imagen_url);
+            imagen.src = obtenerImagenesEvento(evento)[0];
             imagen.alt = evento.titulo || 'Evento';
+            imagen.classList.add('evento-imagen-rotativa');
+            imagen.dataset.eventoId = String(evento.id_evento);
+            imagen.dataset.imagenIndice = '0';
             imagen.onerror = () => {
                 imagen.src = PLACEHOLDER_IMAGE;
             };

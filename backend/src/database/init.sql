@@ -30,6 +30,18 @@ CREATE TABLE IF NOT EXISTS eventos (
     fecha_actualizacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS evento_imagenes (
+    id_imagen INT AUTO_INCREMENT PRIMARY KEY,
+    id_evento INT NOT NULL,
+    imagen_url VARCHAR(255) NOT NULL,
+    orden INT NOT NULL DEFAULT 0,
+    fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_evento_imagenes_evento
+        FOREIGN KEY (id_evento) REFERENCES eventos(id_evento)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS tipos_entrada (
     id_tipo_entrada INT AUTO_INCREMENT PRIMARY KEY,
     id_evento INT NOT NULL,

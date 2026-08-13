@@ -667,9 +667,9 @@ router.post('/aprobar-transferencia', async (req, res) => {
         connection = await db.getConnection();
         await connection.beginTransaction();
 
-        // 1. Verificar que la orden exista y esté pendiente
+        // 1. Verificar que la orden exista y esté pendiente (¡Agregamos traer el TOTAL!)
         const [ordenRows] = await connection.execute(
-            `SELECT id_orden FROM ordenes WHERE codigo_orden = ? AND estado = 'pendiente' FOR UPDATE`,
+            `SELECT id_orden, total FROM ordenes WHERE codigo_orden = ? AND estado = 'pendiente' FOR UPDATE`,
             [codigo_orden]
         );
 
@@ -679,6 +679,7 @@ router.post('/aprobar-transferencia', async (req, res) => {
         }
 
         const id_orden = ordenRows[0].id_orden;
+        const total = ordenRows[0].total; // Guardamos cuánto costó para el reporte
 
         // 2. Aprobar Orden
         await connection.execute(
@@ -692,13 +693,16 @@ router.post('/aprobar-transferencia', async (req, res) => {
             [id_orden]
         );
 
+        // 4. NUEVO: Registrar el pago oficial para que sume en el Dashboard de Ventas
+        await connection.execute(
+            `INSERT INTO pagos (id_orden, proveedor_pago, transaccion_id, monto, estado, fecha_pago, fecha_creacion)
+             VALUES (?, 'Transferencia', ?, ?, 'aprobado', NOW(), NOW())`,
+            [id_orden, `TRANSF-${codigo_orden}`, total]
+        );
+
         await connection.commit();
 
-        // Aquí de forma asíncrona podrías llamar a tu EmailService.enviarConfirmacionCompra()
-        // const EmailService = require('../services/EmailService');
-        // EmailService.enviarConfirmacion(codigo_orden);
-
-        return res.json({ ok: true, message: 'Transferencia aprobada y QRs activados' });
+        return res.json({ ok: true, message: 'Transferencia aprobada, pago registrado y QRs activados' });
 
     } catch (error) {
         if (connection) await connection.rollback();

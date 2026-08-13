@@ -620,14 +620,7 @@ async function cargarEventos() {
 
 async function abrirDetalleEvento(idEvento) {
     try {
-        console.log('==============================');
-        console.log('abrirDetalleEvento -> idEvento:', idEvento);
-
         const { response, data } = await fetchJson(`${API_BASE}/${idEvento}`);
-
-        console.log('response.status:', response?.status);
-        console.log('response.ok:', response?.ok);
-        console.log('data completa:', data);
 
         if (!response.ok || !data?.ok) {
             throw new Error(data?.message || 'No se pudo cargar el evento');
@@ -635,13 +628,6 @@ async function abrirDetalleEvento(idEvento) {
 
         const evento = data.data;
         eventoSeleccionado = evento;
-
-        console.log('eventoSeleccionado:', evento);
-        console.log('evento.id_evento:', evento?.id_evento);
-        console.log('evento.titulo:', evento?.titulo);
-        console.log('evento.lugar:', evento?.lugar);
-        console.log('evento.ciudad:', evento?.ciudad);
-        console.log('evento.fecha_evento:', evento?.fecha_evento);
 
         limpiarSeleccionTipo();
 
@@ -652,31 +638,20 @@ async function abrirDetalleEvento(idEvento) {
 
         if ($('detalleLugar')) {
             const textoLugar = [evento.lugar, evento.ciudad].filter(Boolean).join(' - ') || '--';
-            console.log('texto detalleLugar:', textoLugar);
             $('detalleLugar').textContent = textoLugar;
         }
 
         const btnVerUbicacionEvento = $('btnVerUbicacionEvento');
-        console.log('btnVerUbicacionEvento existe:', !!btnVerUbicacionEvento);
 
         if (btnVerUbicacionEvento) {
             const urlMaps = construirUrlGoogleMaps(evento);
-
-            console.log('urlMaps generada:', urlMaps);
-            console.log('href ANTES:', btnVerUbicacionEvento.getAttribute('href'));
-
             btnVerUbicacionEvento.href = urlMaps;
 
-            console.log('href DESPUÉS:', btnVerUbicacionEvento.getAttribute('href'));
-            console.log('href absoluto DESPUÉS:', btnVerUbicacionEvento.href);
-
             if (urlMaps === '#') {
-                console.log('La URL de Maps quedó en # porque no hubo datos suficientes.');
                 btnVerUbicacionEvento.classList.add('disabled');
                 btnVerUbicacionEvento.setAttribute('aria-disabled', 'true');
                 btnVerUbicacionEvento.setAttribute('tabindex', '-1');
             } else {
-                console.log('La URL de Maps es válida, se habilita el botón.');
                 btnVerUbicacionEvento.classList.remove('disabled');
                 btnVerUbicacionEvento.removeAttribute('aria-disabled');
                 btnVerUbicacionEvento.removeAttribute('tabindex');
@@ -711,9 +686,6 @@ async function abrirDetalleEvento(idEvento) {
         if (detalleModal) {
             detalleModal.show();
         }
-
-        console.log('Modal detalle mostrado correctamente.');
-        console.log('==============================');
     } catch (error) {
         console.error('Error abriendo detalle:', error);
         mostrarAlerta(error.message || 'No se pudo abrir el detalle del evento');
@@ -894,10 +866,12 @@ async function generarLinkPago(idOrden) {
         console.error("Respuesta backend:", data);
         throw new Error(data?.message || 'No se pudo generar el link de pago.');
     }
-    console.log("DATA BACK:", data);
     return data;
 }
 
+// =====================================
+// FUNCIONES DE PAGO 
+// =====================================
 async function manejarPagoPayPhone() {
     if (pagoEnProceso) return;
     if (!validarFormularioCompra()) return;
@@ -954,13 +928,10 @@ async function manejarPagoPayPhone() {
         });
 
         reiniciarCompraCompleta();
-
         window.location.href = url;
     } catch (error) {
         console.error('Error iniciando pago:', error);
-
         reiniciarCompraCompleta();
-
         mostrarAlerta(error.message || 'No se pudo iniciar el pago con PayPhone.');
     } finally {
         pagoEnProceso = false;
@@ -968,9 +939,6 @@ async function manejarPagoPayPhone() {
     }
 }
 
-// =====================================
-// LÓGICA DE TRANSFERENCIA BANCARIA
-// =====================================
 function actualizarMetodoPago() {
     const radioTransferencia = $('pagoTransferencia');
     const cajaTransferencia = $('datosTransferencia');
@@ -1034,12 +1002,12 @@ async function manejarPagoTransferencia() {
         const data = await response.json().catch(() => ({}));
 
         if (response.ok && data.ok) {
-            reiniciarCompraCompleta();
+            limpiarFormularioCompra();
+            limpiarTicketActual();
             if (compraModal) compraModal.hide();
 
-            alert('¡Comprobante enviado con éxito! 🥳\n\nRevisaremos tu transferencia y máximo en 24 horas recibirás tus entradas en tu correo electrónico.');
+            alert('¡Comprobante enviado con éxito! \n\nRevisaremos tu transferencia y en máximo 24 horas recibirás tus entradas en tu correo electrónico.');
 
-            // Redirigimos a la pantalla de éxito mandando el modo transferencia
             window.location.href = `/exito-pago.html?orden=${data.orden.codigo_orden}&modo=transferencia`;
         } else {
             mostrarAlerta(data.message || 'Error al enviar el comprobante. Intenta nuevamente.');
@@ -1057,6 +1025,7 @@ async function manejarPagoTransferencia() {
         }
     }
 }
+
 
 function registrarEventosUI() {
     $('searchInput')?.addEventListener('input', aplicarFiltros);
@@ -1085,11 +1054,9 @@ function registrarEventosUI() {
         actualizarResumenCompra();
     });
 
-    // --- NUEVO: Escuchadores para los botones de radio (Payphone vs Transferencia) ---
     $('pagoPayphone')?.addEventListener('change', actualizarMetodoPago);
     $('pagoTransferencia')?.addEventListener('change', actualizarMetodoPago);
 
-    // --- MODIFICADO: Lógica inteligente del Submit ---
     $('compraForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const esTransferencia = $('pagoTransferencia')?.checked;
@@ -1101,7 +1068,6 @@ function registrarEventosUI() {
         }
     });
 
-    // --- MODIFICADO: Click directo del botón PayPhone (para que no cruce cables) ---
     $('btnPagarPayPhone')?.addEventListener('click', async () => {
         const esTransferencia = $('pagoTransferencia')?.checked;
         if (!esTransferencia) {

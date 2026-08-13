@@ -21,6 +21,7 @@ let state = {
 };
 
 let logoutModalInstance = null;
+let detalleAsistenteModalInstance = null;
 let adminCsrfToken = '';
 
 const dom = {
@@ -302,6 +303,85 @@ function formatearFecha(fecha) {
     return f.toLocaleDateString();
 }
 
+function formatearFechaHora(fecha) {
+    if (!fecha) return '-';
+    const f = new Date(fecha);
+    if (isNaN(f.getTime())) return '-';
+    return f.toLocaleString();
+}
+
+function formatearMoneda(valor) {
+    const numero = Number(valor);
+    if (!Number.isFinite(numero)) return '-';
+    return new Intl.NumberFormat('es-EC', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(numero);
+}
+
+function establecerTexto(id, valor) {
+    const elemento = document.getElementById(id);
+    if (elemento) elemento.textContent = valor || '-';
+}
+
+function renderDetalleAsistente(data) {
+    const entrada = data.asistente || {};
+    const asistente = entrada.asistente || {};
+    const evento = entrada.evento || {};
+    const tipoEntrada = entrada.tipo_entrada || {};
+    const orden = entrada.orden || {};
+    const validaciones = Array.isArray(data.validaciones) ? data.validaciones : [];
+
+    establecerTexto('detalleAsistenteSubtitulo', `Entrada ${entrada.codigo_entrada || '-'}`);
+    establecerTexto('detalleCodigoEntrada', entrada.codigo_entrada);
+    establecerTexto('detalleCodigoOrden', orden.codigo_orden);
+    establecerTexto('detalleNombreAsistente', asistente.nombre);
+    establecerTexto('detalleEmailAsistente', asistente.email);
+    establecerTexto('detalleComprador', asistente.comprador);
+    establecerTexto('detalleDocumentoComprador', asistente.documento);
+    establecerTexto('detalleEventoTitulo', evento.titulo);
+    establecerTexto(
+        'detalleEventoFecha',
+        [formatearFechaHora(evento.fecha_evento), evento.lugar].filter(v => v && v !== '-').join(' · ') || '-'
+    );
+    establecerTexto('detalleTipoEntrada', tipoEntrada.nombre);
+    establecerTexto('detallePrecioEntrada', formatearMoneda(tipoEntrada.precio));
+    establecerTexto('detalleFechaGeneracion', formatearFechaHora(entrada.fecha_generacion));
+    establecerTexto('detalleFechaUso', formatearFechaHora(entrada.fecha_uso));
+
+    const estadoElement = document.getElementById('detalleEstadoEntrada');
+    if (estadoElement) {
+        const estado = String(entrada.estado || 'desconocido');
+        const clases = {
+            usada: 'text-bg-success',
+            generada: 'text-bg-primary',
+            enviada: 'text-bg-info',
+            cancelada: 'text-bg-danger'
+        };
+        estadoElement.innerHTML = `<span class="badge ${clases[estado] || 'text-bg-secondary'}">${escapeHtml(estado)}</span>`;
+    }
+
+    establecerTexto(
+        'detalleHistorialCount',
+        `${validaciones.length} ${validaciones.length === 1 ? 'registro' : 'registros'}`
+    );
+
+    const historialBody = document.getElementById('detalleValidacionesBody');
+    if (historialBody) {
+        historialBody.innerHTML = validaciones.length
+            ? validaciones.map(validacion => `
+                <tr>
+                    <td>${escapeHtml(formatearFechaHora(validacion.fecha_validacion))}</td>
+                    <td>${escapeHtml(validacion.punto_acceso || '-')}</td>
+                    <td>${escapeHtml(validacion.validado_por || '-')}</td>
+                    <td>${escapeHtml(validacion.resultado || '-')}</td>
+                    <td>${escapeHtml(validacion.observacion || '-')}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="5" class="text-center text-muted py-3">Sin validaciones registradas</td></tr>';
+    }
+}
+
 function escapeHtml(texto) {
     if (texto === null || texto === undefined) return '';
     return String(texto)
@@ -375,17 +455,28 @@ async function verDetalle(id) {
             return;
         }
 
+        mostrarLoading(true);
         const resp = await fetch(`${API_BASE}/${id}`, { credentials: 'same-origin' });
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
 
-        if (data.ok) {
-            alert(JSON.stringify(data, null, 2));
+        if (resp.ok && data.ok) {
+            renderDetalleAsistente(data);
+
+            const modalElement = document.getElementById('detalleAsistenteModal');
+            if (!modalElement || typeof bootstrap === 'undefined') {
+                throw new Error('No se pudo inicializar el modal de detalle');
+            }
+
+            detalleAsistenteModalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+            detalleAsistenteModalInstance.show();
         } else {
             mostrarToast(data.message || 'No se pudo cargar el detalle', 'warning');
         }
     } catch (e) {
         console.error('Error cargando detalle:', e);
         mostrarToast('Error cargando detalle del asistente', 'error');
+    } finally {
+        mostrarLoading(false);
     }
 }
 

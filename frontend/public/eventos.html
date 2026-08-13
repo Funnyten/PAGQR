@@ -207,63 +207,73 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold"><i class="bi bi-person me-1"></i> Nombres</label>
-                                <input type="text" class="form-control" id="nombres" placeholder="Ingrese sus nombres"
-                                    required>
+                                <input type="text" class="form-control" id="nombres" placeholder="Ingrese sus nombres" required>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold"><i class="bi bi-person-badge me-1"></i>
-                                    Apellidos</label>
-                                <input type="text" class="form-control" id="apellidos"
-                                    placeholder="Ingrese sus apellidos" required>
+                                <label class="form-label fw-semibold"><i class="bi bi-person-badge me-1"></i> Apellidos</label>
+                                <input type="text" class="form-control" id="apellidos" placeholder="Ingrese sus apellidos" required>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold"><i class="bi bi-envelope me-1"></i> Correo
-                                    electrónico</label>
-                                <input type="email" class="form-control" id="email" placeholder="ejemplo@correo.com"
-                                    required>
+                                <label class="form-label fw-semibold"><i class="bi bi-envelope me-1"></i> Correo electrónico</label>
+                                <input type="email" class="form-control" id="email" placeholder="ejemplo@correo.com" required>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold"><i class="bi bi-telephone me-1"></i>
-                                    Teléfono</label>
+                                <label class="form-label fw-semibold"><i class="bi bi-telephone me-1"></i> Teléfono</label>
                                 <input type="tel" class="form-control" id="telefono" placeholder="0999999999" required>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold"><i class="bi bi-card-text me-1"></i> Cédula o
-                                    RUC</label>
-                                <input type="text" class="form-control" id="documento"
-                                    placeholder="Ingrese su identificación" required>
+                                <label class="form-label fw-semibold"><i class="bi bi-card-text me-1"></i> Cédula o RUC</label>
+                                <input type="text" class="form-control" id="documento" placeholder="Ingrese su identificación" required>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold"><i class="bi bi-calculator me-1"></i> Cantidad de
-                                    entradas</label>
+                                <label class="form-label fw-semibold"><i class="bi bi-calculator me-1"></i> Cantidad de entradas</label>
                                 <input type="number" class="form-control" id="cantidad" min="1" value="1" required>
                             </div>
-
                             <div class="col-12">
-                                <label class="form-label fw-semibold"><i class="bi bi-house-door me-1"></i>
-                                    Dirección</label>
-                                <input type="text" class="form-control" id="direccion"
-                                    placeholder="Ingrese su dirección" required>
+                                <label class="form-label fw-semibold"><i class="bi bi-house-door me-1"></i> Dirección</label>
+                                <input type="text" class="form-control" id="direccion" placeholder="Ingrese su dirección" required>
                             </div>
 
                             <div class="col-12">
                                 <hr />
-                                <h6 class="fw-bold">
-                                    <i class="bi bi-ticket-perforated me-2"></i>Tipo de entrada seleccionado
-                                </h6>
+                                <h6 class="fw-bold"><i class="bi bi-ticket-perforated me-2"></i>Tipo de entrada seleccionado</h6>
                                 <p class="mb-1">
-                                    <strong id="tipoSeleccionadoNombre">--</strong> -
-                                    <span id="tipoSeleccionadoPrecio">--</span>
+                                    <strong id="tipoSeleccionadoNombre">--</strong> - <span id="tipoSeleccionadoPrecio">--</span>
                                 </p>
-                                <p class="text-muted small">
-                                    Stock disponible: <span id="tipoSeleccionadoStock">--</span>
-                                </p>
+                                <p class="text-muted small">Stock disponible: <span id="tipoSeleccionadoStock">--</span></p>
                                 <input type="hidden" id="tipoSeleccionadoId" value="">
+                            </div>
+
+                            <div class="col-12">
+                                <hr />
+                                <h6 class="fw-bold"><i class="bi bi-wallet2 me-2"></i>Método de Pago</h6>
+                                <div class="d-flex gap-4 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="metodoPago" id="pagoPayphone" value="payphone" checked>
+                                        <label class="form-check-label fw-semibold cursor-pointer" for="pagoPayphone">
+                                            Tarjeta / PayPhone
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="metodoPago" id="pagoTransferencia" value="transferencia">
+                                        <label class="form-check-label fw-semibold cursor-pointer" for="pagoTransferencia">
+                                            Transferencia Bancaria
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="datosTransferencia" class="alert alert-secondary d-none border">
+                                    <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-bank me-2"></i>Datos para depósito o transferencia</h6>
+                                    <p class="mb-1 small text-dark"><strong>Banco:</strong> Banco Pichincha</p>
+                                    <p class="mb-1 small text-dark"><strong>Tipo:</strong> Cuenta de Ahorros</p>
+                                    <p class="mb-1 small text-dark"><strong>Número:</strong> 2200112233</p>
+                                    <p class="mb-1 small text-dark"><strong>Titular:</strong> Productora Eventos S.A.</p>
+                                    <p class="mb-3 small text-dark"><strong>Cédula/RUC:</strong> 0992325959001</p>
+
+                                    <label class="form-label fw-semibold small text-dark"><i class="bi bi-upload me-1"></i>Adjuntar comprobante de pago</label>
+                                    <input class="form-control form-control-sm" type="file" id="comprobantePago" accept="image/*,.pdf">
+                                    <div class="form-text small">Sube una foto o PDF del comprobante. Tamaño máximo: 5MB.</div>
+                                </div>
                             </div>
                         </div>
 
@@ -271,25 +281,33 @@
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <div class="resumen-box h-100">
+                                <div class="resumen-box h-100 p-3 bg-light rounded-3 border">
                                     <h6 class="fw-bold"><i class="bi bi-receipt me-2"></i>Resumen de compra</h6>
-                                    <p class="mb-1"><i class="bi bi-calendar-event me-2 text-muted"></i><span
-                                            id="resumenEvento">Evento: --</span></p>
-                                    <p class="mb-1"><i class="bi bi-ticket-perforated me-2 text-muted"></i><span
-                                            id="resumenTipo">Tipo: --</span></p>
-                                    <p class="mb-1"><i class="bi bi-123 me-2 text-muted"></i><span
-                                            id="resumenCantidad">Cantidad: 1</span></p>
-                                    <p class="mb-1"><i class="bi bi-tag me-2 text-muted"></i><span
-                                            id="resumenPrecioUnitario">Precio unitario: --</span></p>
-                                    <p class="fw-bold mt-2"><i class="bi bi-calculator-fill me-2 text-primary"></i><span
-                                            id="resumenTotal">Total: --</span></p>
+                                    <p class="mb-1"><i class="bi bi-calendar-event me-2 text-muted"></i><span id="resumenEvento">Evento: --</span></p>
+                                    <p class="mb-1"><i class="bi bi-ticket-perforated me-2 text-muted"></i><span id="resumenTipo">Tipo: --</span></p>
+                                    <p class="mb-1"><i class="bi bi-123 me-2 text-muted"></i><span id="resumenCantidad">Cantidad: 1</span></p>
+                                    <p class="mb-1"><i class="bi bi-tag me-2 text-muted"></i><span id="resumenPrecioUnitario">Precio unitario: --</span></p>
+                                    <p class="fw-bold mt-2 fs-5"><i class="bi bi-calculator-fill me-2 text-primary"></i><span id="resumenTotal">Total: --</span></p>
                                 </div>
                             </div>
 
-                            <div class="col-md-6 d-flex align-items-end">
+                            <div class="col-md-6 d-flex flex-column justify-content-end">
+                                <!-- Check de Términos (Opcional, si lo tenías lo agregamos aquí) -->
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" value="" id="terminos" required>
+                                    <label class="form-check-label small text-muted" for="terminos">
+                                        Acepto los términos y condiciones para procesar la compra.
+                                    </label>
+                                </div>
+
                                 <div class="d-grid w-100">
-                                    <button type="button" class="btn btn-primary btn-lg" id="btnPagarPayPhone">
-                                        <i class="bi bi-phone me-2"></i>Pagar
+                                    <!-- BOTÓN PAYPHONE -->
+                                    <button type="button" class="btn btn-primary btn-lg shadow-sm" id="btnPagarPayPhone">
+                                        <i class="bi bi-phone me-2"></i>Pagar con PayPhone
+                                    </button>
+                                    <!-- BOTÓN TRANSFERENCIA -->
+                                    <button type="submit" class="btn btn-success btn-lg shadow-sm d-none" id="btnEnviarComprobante">
+                                        <i class="bi bi-check-circle me-2"></i>Enviar Comprobante
                                     </button>
                                 </div>
                             </div>

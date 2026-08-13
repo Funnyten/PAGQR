@@ -17,7 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = $('searchInput');
     const categorySelect = $('categorySelect');
     const citySelect = $('citySelect');
-
+    const radioPayphone = $('pagoPayphone');
+    const radioTransferencia = $('pagoTransferencia');
+    const cajaTransferencia = $('datosTransferencia');
+    const btnPayphone = $('btnPagarPayPhone');
+    const btnTransferencia = $('btnEnviarComprobante');
+    const comprobanteInput = $('comprobantePago');
     const detailModalEl = $('detalleEventoModal');
     const compraModalEl = $('compraModal');
 
@@ -247,6 +252,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         actualizarResumenCompra();
+    }
+
+    function actualizarMetodoPago() {
+        if (radioTransferencia && radioTransferencia.checked) {
+            cajaTransferencia?.classList.remove('d-none');
+            btnPayphone?.classList.add('d-none');
+            btnTransferencia?.classList.remove('d-none');
+            comprobanteInput?.setAttribute('required', 'true');
+        } else {
+            cajaTransferencia?.classList.add('d-none');
+            btnPayphone?.classList.remove('d-none');
+            btnTransferencia?.classList.add('d-none');
+            comprobanteInput?.removeAttribute('required');
+        }
     }
 
     function guardarUltimaCompra(data) {
@@ -870,7 +889,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('compraForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await manejarPagoPayPhone();
+
+        const esTransferencia = radioTransferencia?.checked;
+
+        if (esTransferencia) {
+            console.log("Iniciando pago por transferencia...");
+            mostrarAlerta("Pronto: Aquí subiremos el comprobante al servidor.");
+        } else {
+            await manejarPagoPayPhone();
+        }
     });
 
     $('btnPagarPayPhone')?.addEventListener('click', async () => {
@@ -880,4 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarEventos();
     window.abrirDetalleEvento = abrirDetalleEvento;
     window.seleccionarTipoEntrada = seleccionarTipoEntrada;
+
+    radioPayphone?.addEventListener('change', actualizarMetodoPago);
+    radioTransferencia?.addEventListener('change', actualizarMetodoPago);
 });

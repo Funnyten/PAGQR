@@ -99,7 +99,8 @@ function mapAsistente(row) {
             id_orden: row.id_orden,
             codigo_orden: row.codigo_orden,
             total: toNumber(row.orden_total),
-            estado: row.estado_orden
+            estado: row.estado_orden,
+            comprobante_url: row.comprobante_url 
         }
     };
 }
@@ -121,6 +122,7 @@ const BASE_SQL = `
         o.codigo_orden,
         o.total AS orden_total,
         o.estado AS estado_orden,
+        o.comprobante_url,
 
         c.nombres,
         c.apellidos,

@@ -58,6 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 return "Usado";
             case "cancelada":
                 return "Cancelado";
+            case "pendiente_verificacion":
+                return "En Revisión";
             case "generada":
             case "enviada":
             case "activa":
@@ -75,6 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 return "badge-used";
             case "cancelada":
                 return "badge-cancelled";
+            case "pendiente_verificacion":
+                return "badge bg-warning text-dark px-3 py-2";
             case "generada":
             case "enviada":
             case "activa":
@@ -182,12 +186,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const badgeText = getBadgeText(ticket?.estado);
         const badgeClass = getBadgeClass(ticket?.estado);
 
+        // Verificamos si está congelada
+        const isPending = normalizeLower(ticket?.estado) === "pendiente_verificacion";
+
         const escapeHtml = (value) => String(value ?? "")
             .replaceAll("&", "&amp;")
             .replaceAll("<", "&lt;")
             .replaceAll(">", "&gt;")
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#039;");
+
+        // Si está pendiente, no mostramos el botón de QR, mostramos un botón bloqueado
+        const botonesHtml = isPending
+            ? `<button type="button" class="btn btn-warning btn-sm fw-bold disabled" style="opacity: 0.8;"><i class="bi bi-clock-history me-1"></i>Pago en Revisión</button>
+               <a href="ticket.html?codigo=${encodeURIComponent(codigo)}" class="btn-secondary-custom btn-open-ticket">Ver ticket</a>`
+            : `<button type="button" class="btn-main btn-open-qr">Ver QR</button>
+               <a href="ticket.html?codigo=${encodeURIComponent(codigo)}" class="btn-secondary-custom btn-open-ticket">Ver ticket</a>`;
 
         article.innerHTML = `
             <div class="ticket-top">
@@ -206,19 +220,20 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
 
             <div class="ticket-actions">
-                <button type="button" class="btn-main btn-open-qr">Ver QR</button>
-                <a href="ticket.html?codigo=${encodeURIComponent(codigo)}" class="btn-secondary-custom btn-open-ticket">Ver ticket</a>
+                ${botonesHtml}
             </div>
         `;
 
-        article.querySelector(".btn-open-qr")?.addEventListener("click", () => {
-            saveCurrentTicket(ticket);
-            fillQRModal(ticket);
+        if (!isPending) {
+            article.querySelector(".btn-open-qr")?.addEventListener("click", () => {
+                saveCurrentTicket(ticket);
+                fillQRModal(ticket);
 
-            if (qrModal && window.bootstrap) {
-                bootstrap.Modal.getOrCreateInstance(qrModal).show();
-            }
-        });
+                if (qrModal && window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(qrModal).show();
+                }
+            });
+        }
 
         article.querySelector(".btn-open-ticket")?.addEventListener("click", () => {
             saveCurrentTicket(ticket);

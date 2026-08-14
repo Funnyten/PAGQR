@@ -66,6 +66,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return "Usado";
             case "cancelada":
                 return "Cancelado";
+            case "pendiente_verificacion":
+                return "En Revisión";
             case "generada":
             case "enviada":
             case "activa":
@@ -130,9 +132,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const comprador = getBuyerFullName(ticket);
         const codigoTicket = getTicketCode(ticket) || codigo;
+        const isPending = normalizeLower(ticket?.estado) === "pendiente_verificacion"; // <--- CANDADO
 
         if (badgeStatus) {
             badgeStatus.textContent = getBadgeText(ticket?.estado);
+            if (isPending) {
+                badgeStatus.className = "badge bg-warning text-dark px-3 py-1 rounded-pill";
+            }
         }
 
         if (title) {
@@ -140,9 +146,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (description) {
-            description.textContent =
-                `Presenta este código QR en el acceso del evento "${ticket?.evento?.nombre || "Evento"}". ` +
-                `Este ticket es único y válido para un solo ingreso.`;
+            if (isPending) {
+                description.innerHTML = `<span class="text-warning fw-bold fs-5"><i class="bi bi-clock-history"></i> Tu pago está en revisión.</span><br>El código QR se habilitará automáticamente aquí una vez que el organizador confirme la transferencia.`;
+            } else {
+                description.textContent =
+                    `Presenta este código QR en el acceso del evento "${ticket?.evento?.nombre || "Evento"}". ` +
+                    `Este ticket es único y válido para un solo ingreso.`;
+            }
         }
 
         if (dataRows.length >= 6) {
@@ -151,11 +161,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             setLabeledValue(dataRows[2], "Lugar", ticket?.evento?.lugar || ticket?.evento?.direccion || "No disponible");
             setLabeledValue(dataRows[3], "Asistente", comprador || "No disponible");
             setLabeledValue(dataRows[4], "Documento", ticket?.comprador?.documento || "No disponible");
-            setLabeledValue(dataRows[5], "Código", codigoTicket);
+            setLabeledValue(dataRows[5], "Código", isPending ? "PENDIENTE DE PAGO" : codigoTicket);
         }
 
         if (qrImage) {
-            if (ticket?.qr_image) {
+            if (isPending) {
+                qrImage.style.display = "none";
+                if (!document.getElementById('pending-qr-warning')) {
+                    const warningDiv = document.createElement('div');
+                    warningDiv.id = 'pending-qr-warning';
+                    warningDiv.className = "text-center my-4";
+                    warningDiv.innerHTML = '<i class="bi bi-hourglass-split text-warning" style="font-size: 5rem;"></i><p class="mt-2 text-muted fw-bold">QR Bloqueado Temporalmente</p>';
+                    qrImage.parentElement.appendChild(warningDiv);
+                }
+            } else if (ticket?.qr_image) {
                 qrImage.src = ticket.qr_image;
                 qrImage.alt = codigoTicket;
                 qrImage.style.display = "";
@@ -167,7 +186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (visualCode) {
-            visualCode.textContent = codigoTicket;
+            visualCode.textContent = isPending ? "EN REVISIÓN" : codigoTicket;
         }
 
         if (miniInfo.length >= 3) {
@@ -177,14 +196,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (modalQRImage) {
-            if (ticket?.qr_image) {
+            if (isPending || !ticket?.qr_image) {
+                modalQRImage.removeAttribute("src");
+                modalQRImage.style.display = "none";
+            } else {
                 modalQRImage.src = ticket.qr_image;
                 modalQRImage.alt = codigoTicket;
                 modalQRImage.style.display = "";
-            } else {
-                modalQRImage.removeAttribute("src");
-                modalQRImage.alt = codigoTicket;
-                modalQRImage.style.display = "none";
             }
         }
 
@@ -193,7 +211,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (modalCode) {
-            modalCode.textContent = codigoTicket;
+            modalCode.textContent = isPending ? "EN REVISIÓN" : codigoTicket;
         }
     } catch (error) {
         console.error(error);
